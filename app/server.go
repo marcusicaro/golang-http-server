@@ -35,8 +35,6 @@ func handleRequest(conn net.Conn) {
 
 	requestHeaders := strings.Split(request, "\n")
 
-	// fmt.Println(requestHeaders)
-
 	requestString := requestHeaders[0]
 
 	requestParts := strings.Split(requestString, " ")
@@ -54,6 +52,14 @@ func handleRequest(conn net.Conn) {
 		}
 	}
 
+	compressionType := ""
+	for _, line := range requestHeaders {
+		if strings.HasPrefix(line, "Accept-Encoding") {
+			parts := strings.Split(line, " ")
+			compressionType = parts[1]
+		}
+	}
+
 	body := make([]byte, contentLength)
 	_, err := io.ReadFull(reader, body)
 	if err != nil {
@@ -61,12 +67,16 @@ func handleRequest(conn net.Conn) {
 		os.Exit(1)
 	}
 
-	fmt.Print(string(body))
-
 	if urlParts[1] == "echo" {
 		echoWord := strings.Replace(urlParts[2], "/", "", -1)
 		contentLength := strconv.Itoa(len(echoWord))
-		conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + contentLength + "\r\n\r\n" + echoWord))
+
+		if compressionType == "gzip" {
+			conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Encoding: " + compressionType + "\r\nContent-Type: text/plain\r\nContent-Length: " + contentLength + "\r\n\r\n" + echoWord))
+		} else {
+			conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + contentLength + "\r\n\r\n" + echoWord))
+		}
+
 	} else if urlParts[1] == "user-agent" {
 		userAgent := strings.Split(requestString, ": ")[1]
 		contentLength := strconv.Itoa(len(userAgent))
